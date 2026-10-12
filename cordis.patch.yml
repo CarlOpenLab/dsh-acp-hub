@@ -1,0 +1,13 @@
+# dsh-acp-hub bundle patch: mounts the ACP hub plugin for multi-agent dispatch.
+#
+# Optional composition config (settings namespace `acp-hub`), e.g.:
+#
+# - id: acp-hub
+#   config:
+#     initializeTimeoutMs: 30000
+#     killGraceMs: 5000
+#     autoAllowPermissions: false
+
+- insert:
+    - id: acp-hub
+      name: "@carlopenlab/dsh-acp-hub"
