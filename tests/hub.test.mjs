@@ -32,7 +32,7 @@ test('persistent multi-turn ACP session, controls, permissions and restore', asy
     await waitFor(() => hub.info(session.id).pendingPermissions.length === 1);
     const permission = hub.info(session.id).pendingPermissions[0];
     await assert.rejects(hub.permission(session.id, permission.requestId, 'not-advertised'), /Invalid permission/);
-    await hub.permission(session.id, permission.requestId, 'allow');
+    await hub.permission(session.id, permission.requestId, 'allow-always');
     await turn;
     assert.equal(hub.info(session.id).pendingPermissions.length, 0);
     const cancelled = hub.promptAndWait(session.id, 'wait');

@@ -124,6 +124,8 @@ export class NativeAcpAdapter extends LlmAdapter {
         if (event.type === 'permission_request') {
           const request = event.raw as { toolCall?: import('@agentclientprotocol/sdk').ToolCallUpdate };
           const callId = request.toolCall ? recorder().record(request.toolCall) : undefined;
+          // The web dialog can resolve this request directly; the host approval
+          // service remains a fallback for non-browser callers and old shells.
           const task = this.#permission(agent, native.id, event, options.signal, callId).finally(() => permissionTasks.delete(task));
           permissionTasks.add(task);
           continue;
@@ -157,15 +159,25 @@ export class NativeAcpAdapter extends LlmAdapter {
   }
 
   async #permission(agent: Agent, id: string, event: SessionEvent, signal?: AbortSignal, callId?: import('@deepseek-ai/dsh-llm').ToolCallId): Promise<void> {
+    const requestId = event.requestId!;
     try {
       const request = event.raw as { toolCall?: { title?: string } };
-      const outcome = await this.ctx.approval.request({ agent, toolName: request.toolCall?.title ?? 'ACP action', reason: request.toolCall?.title ?? 'ACP agent requests permission', signal, ...(callId ? { callId } : {}) });
-      const allow = event.options?.find(o => o.kind === 'allow_once');
-      if (outcome === 'allowed-once' && allow) await this.hub.permission(id, event.requestId!, allow.optionId);
-      else await this.hub.permission(id, event.requestId!);
+      const browser = this.hub.info(id).nativeSessionId && this.hub.isBrowserSession(this.hub.info(id).nativeSessionId!);
+      const selected = browser
+        ? await this.hub.waitForPermission(id, requestId).then(optionId => ({ source: 'browser' as const, optionId }))
+        : await this.ctx.approval.request({ agent, toolName: request.toolCall?.title ?? 'ACP action', reason: request.toolCall?.title ?? 'ACP agent requests permission', signal, ...(callId ? { callId } : {}) }).then(outcome => ({ source: 'host' as const, outcome }));
+      // Prefer a persistent ACP grant when the agent advertises one.
+      const allow = event.options?.find(o => o.kind === 'allow_always')
+        ?? event.options?.find(o => o.kind === 'allow_once');
+      // Browser handlers already called hub.permission before waking this waiter.
+      if (selected.source === 'browser') return;
+      else if (selected.outcome === 'allowed-once' && allow) await this.hub.permission(id, requestId, allow.optionId);
+      else await this.hub.permission(id, requestId);
     } catch (error) {
       this.ctx.logger?.error('ACP approval failed: %s', error);
-      await this.hub.permission(id, event.requestId!).catch(() => {});
+      await this.hub.permission(id, requestId).catch(() => {});
+    } finally {
+      this.hub.clearPermissionWait(id, requestId);
     }
   }
 }

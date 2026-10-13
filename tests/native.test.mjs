@@ -55,7 +55,7 @@ test('native permissions, cancellation and finish reasons use the host contracts
   try {
     await hub.ready;
     const adapter = new NativeAcpAdapter(hub, ctx);
-    assert.equal(textOf(await collect(adapter.stream({ ...base, messages: [message('u1', 'permission')] }))), 'permission:selected');
+    assert.equal(textOf(await collect(adapter.stream({ ...base, messages: [message('u1', 'permission')] }))), 'permission:allow-always');
     assert.equal(approvals[0].toolName, 'Read test file');
     assert.match(approvals[0].callId, /^acp:/);
     const max = await collect(adapter.stream({ ...base, messages: [message('u2', 'max')] }));

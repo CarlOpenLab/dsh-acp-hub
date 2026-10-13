@@ -18,8 +18,12 @@ is available as `acp-hub/<agent>/local` without a saved connection.
 
 ACP turns are persisted and restored by native DSH session id and provider. ACP
 stream text, reasoning and plans are rendered in the native chat
-transcript. Permission requests are sent through DSH's approval service, so the
-native approval panel controls whether an ACP action is allowed or cancelled.
+transcript. In DSH Web, the model menu shows the agent's advertised work modes;
+switching asks for confirmation and the current mode can be selected again to switch back.
+Tool permission requests appear in a session-scoped dialog with the options advertised
+by the agent. Non-browser ACP callers continue to use DSH's approval service as a fallback.
+After approval, the bridge prefers ACP's `allow_always` permission option when
+available, falling back to `allow_once` when the agent does not offer it.
 ACP tools now use DSH's native tool cards: calls show as running, then settle as
 completed, failed or interrupted. Read paths, shell commands and file edits with
 diffs map to the corresponding native cards when ACP supplies the required
@@ -140,7 +144,7 @@ acp_call(agent: "codex", prompt: "Write a hello world in Rust", cwd: "/tmp/test"
     initializeTimeoutMs: 30000
     # Process kill grace period (ms)
     killGraceMs: 5000
-    # Auto-answer permission requests with first allow_once option
+    # Auto-answer permission requests, preferring allow_always when advertised
     autoAllowPermissions: false
     # Per-agent launch overrides
     agents:

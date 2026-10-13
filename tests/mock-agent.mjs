@@ -13,7 +13,7 @@ for await (const line of createInterface({ input: process.stdin })) {
     const turn = permissions.get(request.id);
     if (turn) {
       update(turn.sessionId, { sessionUpdate: 'tool_call_update', toolCallId: 'read-file', status: request.result.outcome.outcome === 'selected' ? 'completed' : 'failed', content: [{ type: 'content', content: { type: 'text', text: 'permission tool result' } }] });
-      update(turn.sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `permission:${request.result.outcome.outcome}` } });
+      update(turn.sessionId, { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: `permission:${request.result.outcome.optionId ?? request.result.outcome.outcome}` } });
       respond(turn.id, { stopReason: 'end_turn' }); permissions.delete(request.id);
     }
     continue;
@@ -31,7 +31,7 @@ for await (const line of createInterface({ input: process.stdin })) {
       const rpcId = ++permissionId; permissions.set(rpcId, { id, sessionId: params.sessionId });
       send({ jsonrpc: '2.0', id: rpcId, method: 'session/request_permission', params: {
         sessionId: params.sessionId, toolCall: { toolCallId: 'read-file', title: 'Read test file', status: 'pending' },
-        options: [{ optionId: 'allow', name: 'Allow once', kind: 'allow_once' }, { optionId: 'reject', name: 'Reject', kind: 'reject_once' }],
+        options: [{ optionId: 'allow-always', name: 'Always allow', kind: 'allow_always' }, { optionId: 'reject', name: 'Reject', kind: 'reject_once' }],
       } });
     } else if (text === 'wait') pendingTurns.set(params.sessionId, id);
     else if (text === 'tools' || text === 'tools-wait') {

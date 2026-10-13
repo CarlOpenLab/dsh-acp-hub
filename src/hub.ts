@@ -53,6 +53,8 @@ export class AcpHub {
   #disposed = false;
   readonly #listeners = new Map<string, Set<(event: SessionEvent) => void>>();
   readonly #profileListeners = new Set<() => void>();
+  readonly #permissionWaiters = new Map<string, Set<(optionId?: string) => void>>();
+  readonly #browserSessions = new Set<string>();
 
   onProfilesChanged(listener: () => void): () => void {
     this.#profileListeners.add(listener);
@@ -236,7 +238,8 @@ export class AcpHub {
         if (event.type === 'permission_request') {
           record.pendingPermissions.push(event);
           if (this.#config.autoAllowPermissions && !record.nativeSessionId) {
-            const allow = event.options?.find(o => o.kind === 'allow_once');
+            const allow = event.options?.find(o => o.kind === 'allow_always')
+              ?? event.options?.find(o => o.kind === 'allow_once');
             if (allow) await this.permission(record.id, event.requestId!, allow.optionId);
           }
         }
@@ -294,6 +297,7 @@ export class AcpHub {
   }
 
   async releaseNative(nativeId: string): Promise<void> {
+    this.#browserSessions.delete(nativeId);
     await Promise.all([...this.#sessions.values()].filter(s => s.nativeSessionId === nativeId && s.session).map(s => this.close(s.id)));
   }
 
@@ -303,6 +307,25 @@ export class AcpHub {
     const events = record.events.slice(after, after + 500);
     return { events, next: after + events.length, session: this.info(id) };
   }
+
+  markBrowserSession(nativeSessionId: string): void { this.#browserSessions.add(nativeSessionId); }
+  isBrowserSession(nativeSessionId: string): boolean { return this.#browserSessions.has(nativeSessionId); }
+
+  waitForPermission(id: string, requestId: string): Promise<string | undefined> {
+    const key = `${id}:${requestId}`;
+    const record = this.#record(id);
+    if (!record.pendingPermissions.some(permission => permission.requestId === requestId)) return Promise.resolve(undefined);
+    return new Promise(resolve => {
+      const waiters = this.#permissionWaiters.get(key) ?? new Set();
+      waiters.add(resolve);
+      this.#permissionWaiters.set(key, waiters);
+    });
+  }
+
+  clearPermissionWait(id: string, requestId: string): void {
+    this.#permissionWaiters.delete(`${id}:${requestId}`);
+  }
+
 
   prompt(id: string, text: string): void {
     void this.promptAndWait(id, text).catch(() => {});
@@ -343,6 +366,9 @@ export class AcpHub {
     else await record.session.cancelPermission(requestId);
     record.pendingPermissions = record.pendingPermissions.filter(p => p.requestId !== requestId);
     record.events.push({ type: 'permission_resolved', requestId });
+    const key = `${id}:${requestId}`;
+    for (const resolve of this.#permissionWaiters.get(key) ?? []) resolve(optionId);
+    this.#permissionWaiters.delete(key);
   }
 
   async configure(id: string, configId: string, value: string | boolean): Promise<void> {

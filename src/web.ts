@@ -48,6 +48,11 @@ export function mountWebApi(context: Context, hub: AcpHub, native?: NativeAcpAda
       if (req.method === 'GET' && path === '/state') {
         send(res, 200, { agents: hub.agents(), profiles: hub.profiles(), sessions: hub.sessions() }); return;
       }
+      if (req.method === 'POST' && path === '/sessions/claim') {
+        const body = await readJson(req);
+        hub.markBrowserSession(text(body, 'nativeSessionId'));
+        send(res, 200, { accepted: true }); return;
+      }
       if (req.method === 'POST' && path === '/profiles') {
         const profile = await hub.saveProfile(await readJson(req) as unknown as ConnectionProfile);
         send(res, 200, { profile }); return;
